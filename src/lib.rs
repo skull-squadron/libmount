@@ -29,23 +29,33 @@ extern crate nix;
 mod util;
 mod error;
 mod explain;
+#[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
 mod bind;
 mod overlay;
+#[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
 mod tmpfs;
+#[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
 mod modify;
+#[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
 mod remount;
 pub mod mountinfo;
 
 use std::io;
 
 use explain::Explainable;
+#[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
 use remount::RemountError;
+#[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
 pub use bind::BindMount;
 pub use overlay::Overlay;
+#[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
 pub use tmpfs::Tmpfs;
+#[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
 pub use modify::Move;
+#[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
 pub use remount::Remount;
 
+#[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
 quick_error! {
     #[derive(Debug)]
     enum MountError {
@@ -54,6 +64,17 @@ quick_error! {
             from()
         }
         Remount(err: RemountError) {
+            cause(err)
+            from()
+        }
+    }
+}
+
+#[cfg(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos"))]
+quick_error! {
+    #[derive(Debug)]
+    enum MountError {
+        Io(err: io::Error) {
             cause(err)
             from()
         }
@@ -75,17 +96,18 @@ quick_error! {
 /// path.
 ///
 #[derive(Debug)]
-pub struct OSError(MountError, Box<Explainable>);
+pub struct OSError(MountError, Box<dyn Explainable>);
 
 impl OSError {
-    fn from_remount(err: RemountError, explain: Box<Explainable>) -> OSError {
+    #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
+    fn from_remount(err: RemountError, explain: Box<dyn Explainable>) -> OSError {
         OSError(MountError::Remount(err), explain)
     }
 
-    fn from_nix(err: nix::Error, explain: Box<Explainable>) -> OSError {
+    fn from_nix(err: nix::Error, explain: Box<dyn Explainable>) -> OSError {
         OSError(
             MountError::Io(
-                err.as_errno().map_or_else(|| io::Error::new(io::ErrorKind::Other, err), io::Error::from),
+                io::Error::from(err),
             ),
             explain,
         )
@@ -98,4 +120,4 @@ impl OSError {
 /// This type only provides `Display` for now, but some programmatic interface
 /// is expected in future.
 #[derive(Debug)]
-pub struct Error(Box<Explainable>, io::Error, String);
+pub struct Error(Box<dyn Explainable>, io::Error, String);

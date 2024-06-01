@@ -72,10 +72,10 @@ impl BindMount {
             return Err(OSError::from_nix(err, Box::new(self)));
         }
         if self.readonly {
-            try!(Remount::new(OsStr::from_bytes(self.target.as_bytes()))
+            Remount::new(OsStr::from_bytes(self.target.as_bytes()))
                 .bind(true)
                 .readonly(true)
-                .bare_remount());
+                .bare_remount()?;
         }
         Ok(())
     }
@@ -89,7 +89,7 @@ impl BindMount {
 impl fmt::Display for BindMount {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         if self.recursive {
-            try!(write!(fmt, "recursive "));
+            write!(fmt, "recursive ")?;
         }
         write!(fmt, "bind mount {:?} -> {:?}",
             as_path(&self.source), as_path(&self.target))

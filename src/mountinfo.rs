@@ -7,6 +7,10 @@ use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::borrow::Cow;
 use std::error::Error;
 
+#[cfg(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos"))]
+use nix::mount::MntFlags;
+
+#[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
 use nix::mount::MsFlags;
 
 use libc::c_ulong;
@@ -48,7 +52,7 @@ impl ParseError {
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Parse error at line {}: {}\n{}",
-            self.row_num, self.description(), self.row)
+            self.row_num, self.to_string(), self.row)
     }
 }
 
@@ -107,6 +111,7 @@ impl<'a> MountPoint<'a> {
         self.get_mount_flags().bits() as c_ulong
     }
 
+    #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
     pub(crate) fn get_mount_flags(&self) -> MsFlags {
         let mut flags = MsFlags::empty();
         for opt in self.mount_options.as_bytes().split(|c| *c == b',') {
@@ -122,6 +127,43 @@ impl<'a> MountPoint<'a> {
             else if opt == OsStr::new("nodiratime") { flags |= MsFlags::MS_NODIRATIME }
             else if opt == OsStr::new("relatime") { flags |= MsFlags::MS_RELATIME }
             else if opt == OsStr::new("strictatime") { flags |= MsFlags::MS_STRICTATIME }
+        }
+        flags
+    }
+
+    #[cfg(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos"))]
+    pub(crate) fn get_mount_flags(&self) -> MntFlags {
+        let mut flags = MntFlags::empty();
+        for opt in self.mount_options.as_bytes().split(|c| *c == b',') {
+            let opt = OsStr::from_bytes(opt);
+            if opt == OsStr::new("async") { flags |= MntFlags::MNT_ASYNC }
+            else if opt == OsStr::new("auto") { flags |= MntFlags::MNT_AUTOMOUNTED }
+            else if opt == OsStr::new("automounted") { flags |= MntFlags::MNT_AUTOMOUNTED }
+            else if opt == OsStr::new("cprotect") { flags |= MntFlags::MNT_CPROTECT }
+            else if opt == OsStr::new("defwrite") { flags |= MntFlags::MNT_DEFWRITE }
+            else if opt == OsStr::new("nobrowse") { flags |= MntFlags::MNT_DONTBROWSE }
+            else if opt == OsStr::new("exported") { flags |= MntFlags::MNT_EXPORTED }
+            else if opt == OsStr::new("force") { flags |= MntFlags::MNT_FORCE }
+            else if opt == OsStr::new("noowners") { flags |= MntFlags::MNT_IGNORE_OWNERSHIP }
+            else if opt == OsStr::new("journaled") { flags |= MntFlags::MNT_JOURNALED }
+            else if opt == OsStr::new("local") { flags |= MntFlags::MNT_LOCAL }
+            else if opt == OsStr::new("multilabel") { flags |= MntFlags::MNT_MULTILABEL }
+            else if opt == OsStr::new("noatime") { flags |= MntFlags::MNT_NOATIME }
+            else if opt == OsStr::new("noblock") { flags |= MntFlags::MNT_NOBLOCK }
+            else if opt == OsStr::new("nodev") { flags |= MntFlags::MNT_NODEV }
+            else if opt == OsStr::new("noexec") { flags |= MntFlags::MNT_NOEXEC }
+            else if opt == OsStr::new("nosuid") { flags |= MntFlags::MNT_NOSUID }
+            else if opt == OsStr::new("nouserxattr") { flags |= MntFlags::MNT_NOUSERXATTR }
+            else if opt == OsStr::new("quarantine") { flags |= MntFlags::MNT_QUARANTINE }
+            else if opt == OsStr::new("quota") { flags |= MntFlags::MNT_QUOTA }
+            else if opt == OsStr::new("ro") { flags |= MntFlags::MNT_RDONLY }
+            else if opt == OsStr::new("read-only") { flags |= MntFlags::MNT_RDONLY }
+            else if opt == OsStr::new("reload") { flags |= MntFlags::MNT_RELOAD }
+            else if opt == OsStr::new("rootfs") { flags |= MntFlags::MNT_ROOTFS }
+            else if opt == OsStr::new("snapshot") { flags |= MntFlags::MNT_SNAPSHOT }
+            else if opt == OsStr::new("sync") { flags |= MntFlags::MNT_SYNCHRONOUS }
+            else if opt == OsStr::new("union") { flags |= MntFlags::MNT_UNION }
+            else if opt == OsStr::new("update") { flags |= MntFlags::MNT_UPDATE }
         }
         flags
     }
@@ -172,16 +214,16 @@ pub(crate) fn parse_mount_point<'a>(row: &'a [u8])
         return Ok(None);
     }
 
-    let (mount_id, row) = try!(parse_int(row));
-    let (parent_id, row) = try!(parse_int(row));
-    let (major, minor, row) = try!(parse_major_minor(row));
-    let (root, row) = try!(parse_os_str(row));
-    let (mount_point, row) = try!(parse_os_str(row));
-    let (mount_options, row) = try!(parse_os_str(row));
-    let (optional_fields, row) = try!(parse_optional(row));
-    let (fstype, row) = try!(parse_os_str(row));
-    let (mount_source, row) = try!(parse_os_str(row));
-    let (super_options, _) = try!(parse_os_str(row));
+    let (mount_id, row) = parse_int(row)?;
+    let (parent_id, row) = parse_int(row)?;
+    let (major, minor, row) = parse_major_minor(row)?;
+    let (root, row) = parse_os_str(row)?;
+    let (mount_point, row) = parse_os_str(row)?;
+    let (mount_options, row) = parse_os_str(row)?;
+    let (optional_fields, row) = parse_optional(row)?;
+    let (fstype, row) = parse_os_str(row)?;
+    let (mount_source, row) = parse_os_str(row)?;
+    let (super_options, _) = parse_os_str(row)?;
     // TODO: should we ignore extra fields?
     Ok(Some(MountPoint {
         mount_id: mount_id,
@@ -235,38 +277,38 @@ fn parse_field<'a>(data: &'a [u8], delimit: &'a [u8])
 fn parse_os_str<'a>(data: &'a [u8])
     -> Result<(Cow<'a, OsStr>, &'a [u8]), ParseRowError>
 {
-    let (field, tail) = try!(parse_field(data, b" "));
+    let (field, tail) = parse_field(data, b" ")?;
     Ok((unescape_octals(OsStr::from_bytes(field)), tail))
 }
 
 fn parse_int(data: &[u8])
     -> Result<(c_ulong, &[u8]), ParseRowError>
 {
-    let (field, tail) = try!(parse_field(data, b" "));
-    let v = try!(std::str::from_utf8(field).map_err(|e| {
+    let (field, tail) = parse_field(data, b" ")?;
+    let v = std::str::from_utf8(field).map_err(|e| {
         ParseRowError(format!("Cannot parse integer {:?}: {}",
-            String::from_utf8_lossy(field).into_owned(), e))}));
+            String::from_utf8_lossy(field).into_owned(), e))})?;
 
-    let v = try!(c_ulong::from_str_radix(v, 10).map_err(|e| {
+    let v = c_ulong::from_str_radix(v, 10).map_err(|e| {
         ParseRowError(format!("Cannot parse integer {:?}: {}",
-            String::from_utf8_lossy(field).into_owned(), e))}));
+            String::from_utf8_lossy(field).into_owned(), e))})?;
     Ok((v, tail))
 }
 
 fn parse_major_minor(data: &[u8])
     -> Result<(c_ulong, c_ulong, &[u8]), ParseRowError>
 {
-    let (major_field, data) = try!(parse_field(data, b":"));
-    let (minor_field, tail) = try!(parse_field(data, b" "));
-    let (major, _) = try!(parse_int(major_field));
-    let (minor, _) = try!(parse_int(minor_field));
+    let (major_field, data) = parse_field(data, b":")?;
+    let (minor_field, tail) = parse_field(data, b" ")?;
+    let (major, _) = parse_int(major_field)?;
+    let (minor, _) = parse_int(minor_field)?;
     Ok((major, minor, tail))
 }
 
 fn parse_optional<'a>(data: &'a [u8])
     -> Result<(Cow<'a, OsStr>, &'a [u8]), ParseRowError>
 {
-    let (field, tail) = try!(parse_field(data, b"- "));
+    let (field, tail) = parse_field(data, b"- ")?;
     let field = rstrip_whitespaces(field);
     Ok((unescape_octals(OsStr::from_bytes(field)), tail))
 }
@@ -355,6 +397,7 @@ mod test {
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
 
+    #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
     use nix::mount::MsFlags;
 
     use super::{Parser, ParseError};
@@ -389,6 +432,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
     fn test_mount_info_parser_proc() {
         let content = b"19 24 0:4 / /proc rw,nosuid,nodev,noexec,relatime shared:12 - proc proc rw";
         let mut parser = Parser::new(&content[..]);
@@ -409,6 +453,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
     fn test_mount_info_parser_comment() {
         let content = b"# Test comment\n\
                         \t # Another shifted comment\n\
@@ -431,6 +476,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
     fn test_mount_info_parser_missing_optional_fields() {
         let content = b"335 294 0:56 / /proc rw,relatime - proc proc rw";
         let mut parser = Parser::new(&content[..]);
@@ -451,6 +497,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
     fn test_mount_info_parser_more_optional_fields() {
         let content = b"335 294 0:56 / /proc rw,relatime shared:12 master:1 - proc proc rw";
         let mut parser = Parser::new(&content[..]);
@@ -471,6 +518,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
     fn test_mount_info_parser_escaping() {
         let content = br"76 24 8:6 / /home/my\040super\011name\012\134 rw,relatime shared:29 - ext4 /dev/sda1 rw,data=ordered";
         let mut parser = Parser::new(&content[..]);
@@ -491,6 +539,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
     fn test_mount_info_parser_non_utf8() {
         let content = b"22 24 0:19 / /\xff rw shared:5 - tmpfs tmpfs rw,mode=755";
         let mut parser = Parser::new(&content[..]);
@@ -504,6 +553,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
     fn test_mount_info_parser_crlf() {
         let content = b"26 20 0:21 / /tmp rw shared:4 - tmpfs tmpfs rw\r\n\
                         \n\

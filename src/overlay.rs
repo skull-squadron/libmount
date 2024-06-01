@@ -5,7 +5,11 @@ use std::ffi::{CStr, CString};
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::ffi::OsStrExt;
 
-use nix::mount::{MsFlags, mount};
+use nix::mount::mount;
+#[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
+use nix::mount::MsFlags;
+#[cfg(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos"))]
+use nix::mount::MntFlags;
 
 use util::{path_to_cstring, as_path};
 use {OSError, Error};
@@ -64,6 +68,16 @@ impl Overlay {
         }
     }
 
+    #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
+    fn empty_mnt_flags() -> MsFlags {
+        MsFlags::empty()
+    }
+
+    #[cfg(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos"))]
+    fn empty_mnt_flags() -> MntFlags {
+        MntFlags::empty()
+    }
+
     /// Execute an overlay mount
     pub fn bare_mount(self) -> Result<(), OSError> {
         let mut options = Vec::new();
@@ -81,10 +95,9 @@ impl Overlay {
             append_escape(&mut options, w);
         }
         mount(
-            Some(CStr::from_bytes_with_nul(b"overlay\0").unwrap()),
+            CStr::from_bytes_with_nul(b"overlay\0").unwrap(),
             &*self.target,
-            Some(CStr::from_bytes_with_nul(b"overlay\0").unwrap()),
-            MsFlags::empty(),
+            Self::empty_mnt_flags(),
             Some(&*options),
         ).map_err(|err| OSError::from_nix(err, Box::new(self)))
     }

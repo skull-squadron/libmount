@@ -1,12 +1,16 @@
+#[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
 use std::io;
 use std::fmt;
 use std::error::Error as StdError;
 
 use {OSError, Error, MountError};
+
+#[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
 use remount::RemountError;
 
 impl OSError {
     /// Convert error to the one providing extra useful information
+    #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos")))]
     pub fn explain(self) -> Error {
         let text = self.1.explain();
         match self.0 {
@@ -23,6 +27,15 @@ impl OSError {
             },
         }
     }
+
+    /// Convert error to the one providing extra useful information
+    #[cfg(any(target_os = "ios", target_os = "macos", target_os = "watchos", target_os = "tvos", target_os = "visionos"))]
+    pub fn explain(self) -> Error {
+        let text = self.1.explain();
+        match self.0 {
+            MountError::Io(e) => Error(self.1, e, text),
+        }
+    }
 }
 
 impl fmt::Display for OSError {
@@ -32,7 +45,7 @@ impl fmt::Display for OSError {
 }
 
 impl StdError for OSError {
-    fn cause(&self) -> Option<&StdError> {
+    fn cause(&self) -> Option<&dyn StdError> {
         Some(&self.0)
     }
     fn description(&self) -> &str {
@@ -47,10 +60,10 @@ impl fmt::Display for Error {
 }
 
 impl StdError for Error {
-    fn cause(&self) -> Option<&StdError> {
+    fn cause(&self) -> Option<&dyn StdError> {
         Some(&self.1)
     }
     fn description(&self) -> &str {
-       self.1.description()
+        self.1.description()
     }
 }

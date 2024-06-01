@@ -188,51 +188,51 @@ impl fmt::Display for MountFlags {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let mut prefix = "";
         if let Some(true) = self.bind {
-            try!(write!(fmt, "{}bind", prefix));
+            write!(fmt, "{}bind", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.readonly {
-            try!(write!(fmt, "{}ro", prefix));
+            write!(fmt, "{}ro", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.nodev {
-            try!(write!(fmt, "{}nodev", prefix));
+            write!(fmt, "{}nodev", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.noexec {
-            try!(write!(fmt, "{}noexec", prefix));
+            write!(fmt, "{}noexec", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.nosuid {
-            try!(write!(fmt, "{}nosuid", prefix));
+            write!(fmt, "{}nosuid", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.noatime {
-            try!(write!(fmt, "{}noatime", prefix));
+            write!(fmt, "{}noatime", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.nodiratime {
-            try!(write!(fmt, "{}nodiratime", prefix));
+            write!(fmt, "{}nodiratime", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.relatime {
-            try!(write!(fmt, "{}relatime", prefix));
+            write!(fmt, "{}relatime", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.strictatime {
-            try!(write!(fmt, "{}strictatime", prefix));
+            write!(fmt, "{}strictatime", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.dirsync {
-            try!(write!(fmt, "{}dirsync", prefix));
+            write!(fmt, "{}dirsync", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.synchronous {
-            try!(write!(fmt, "{}sync", prefix));
+            write!(fmt, "{}sync", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.mandlock {
-            try!(write!(fmt, "{}mand", prefix));
+            write!(fmt, "{}mand", prefix)?;
         }
         Ok(())
     }
@@ -241,7 +241,7 @@ impl fmt::Display for MountFlags {
 impl fmt::Display for Remount {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         if !self.flags.apply_to_flags(MsFlags::empty()).is_empty() {
-            try!(write!(fmt, "{} ", self.flags));
+            write!(fmt, "{} ", self.flags)?;
         }
         write!(fmt, "remount {:?}", &self.path)
     }
@@ -260,18 +260,18 @@ fn get_mountpoint_flags(path: &Path) -> Result<MsFlags, RemountError> {
     let mount_path = if path.is_absolute() {
         path.to_path_buf()
     } else {
-        let mut mpath = try!(current_dir());
+        let mut mpath = current_dir()?;
         mpath.push(path);
         mpath
     };
     let mut mountinfo_content = Vec::with_capacity(4 * 1024);
     let mountinfo_path = Path::new("/proc/self/mountinfo");
-    let mut mountinfo_file = try!(File::open(mountinfo_path)
+    let mut mountinfo_file = File::open(mountinfo_path)
         .map_err(|e| RemountError::Io(
-            format!("Cannot open file: {:?}", mountinfo_path), e)));
-    try!(mountinfo_file.read_to_end(&mut mountinfo_content)
+            format!("Cannot open file: {:?}", mountinfo_path), e))?;
+    mountinfo_file.read_to_end(&mut mountinfo_content)
         .map_err(|e| RemountError::Io(
-            format!("Cannot read file: {:?}", mountinfo_path), e)));
+            format!("Cannot read file: {:?}", mountinfo_path), e))?;
     match get_mountpoint_flags_from(&mountinfo_content, &mount_path) {
         Ok(Some(flags)) => Ok(flags),
         Ok(None) => Err(RemountError::UnknownMountPoint(mount_path)),
